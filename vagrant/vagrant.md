@@ -1,5 +1,6 @@
 # Simplifying Dev Environments With Vagrant
 ## by: Justin Tallant
+### @jtallant
 
 ---
 
@@ -148,7 +149,15 @@ ssh-keygen -t rsa -C "your@email.com"
 
 # Bash Detour
 
+We're going to do some configuration that will make life easier later. The next few steps aren't mandatory for setting up homestead or vagrant.
+
+---
+
+# Set your EDITOR
+
 The next slide will make use of `$EDITOR`. It is a sort of "global" bash variable you can set to your favorite editor. Programs like Git make use of it when told to do so.
+
+Let's set the EDITOR variable if it is not already set.
 
 In `.bash_profile`
 
@@ -158,7 +167,7 @@ export EDITOR="subl -w"
 
 Restart terminal
 
-^ Action: Open your bash_profile and add the EDITOR variable to it.
+^ Action: Open your .bash_profile and add the EDITOR variable to it.
 
 ---
 
@@ -178,6 +187,22 @@ alias vm="ssh vagrant@127.0.0.1 -p 2222"
 
 ---
 
+# Edit aliases for your VM
+
+Remember that your VM is separate from your machine. It will have its own bash aliases. You can configure them in the aliases file of your homestead directory.
+
+```
+alias ..="cd .."
+alias ...="cd ../.."
+
+alias h="cd ~"
+alias c="clear"
+```
+
+^ P: Show the aliases file
+
+---
+
 # Edit homestead.yaml
 Change the paths in homestead.yaml to match your paths
 
@@ -187,14 +212,27 @@ authorize: /Users/you/.ssh/id_rsa.pub
 keys:
   - /Users/you/.ssh/id_rsa
 
-# map: The path to the directory you keep your sites in
-# to: The directory your sites will be synced to on the VM
+# Folders
+#
+# Any folder on your computer that you want to add to your vm should be mapped
+# to a location in your VM here.
+#
+# map: The path to the directory on your computer
+# to: The location you would like that directory to exist in on the VM.
 folders:
   - map: /Users/you/Sites
     to: /home/vagrant/Sites
 
+# Sites
+#
+# Sites in your VM that you would like to access.
+#
 # map: The domain you want to access the site at. This should also go in your hosts file.
-# to: The public directory of the app or site you are accessing at the domain name specifed in 'map'
+# to: The public directory of the site inside your VMe you are accessing at the domain name specifed in 'map'
+#
+# Remember that anything in "to" must actually exist in your VM. You get directories into your VM by adding them
+# to the "Folders" list above. If the site exists within a subdirectory of a directory you already mapped
+# in "Folders", then you don't need to map the subdirectory.
 sites:
   - map: homestead.app
     to: /home/vagrant/Sites/Laravel/public
@@ -205,14 +243,6 @@ variables:
 ```
 
 ^ Action: Replace the paths with your paths
-
----
-
-# Edit aliases for your VM
-
-Remember that your VM is separate from your machine. It will have its own bash aliases. You can configure them in the aliases file of your homestead directory.
-
-^ P: Show the aliases file
 
 ---
 
