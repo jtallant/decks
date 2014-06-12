@@ -5,9 +5,10 @@
 
 # Follow Along
 
-Code Snippets:
+The presentation is written in markdown. You can follow along in the markdown file so you can easily copy/paste code snippets.
+
 ```
-https://gist.github.com/jtallant/d0342b83cd09b095e49a
+https://github.com/jtallant/decks/blob/master/vagrant/vagrant.md
 ```
 
 ---
