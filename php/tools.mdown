@@ -1,0 +1,199 @@
+# QA Tool Tools
+## and other random php stuff
+
+---
+
+# Changes to Laravel
+* Swap Eloquent for Doctrine
+* Swap Blade with Twig
+
+---
+
+# Doctrine
+
+Doctrine is the most robust ORM/DBAL in PHP
+http://www.doctrine-project.org/
+
+---
+
+# DBAL
+
+## Database Abstraction Layer
+* Keeps you from being coupled to a certain form of SQL.
+* Switch between sqlite/mysql/pgsql etc just by
+changing the driver.
+
+---
+
+# ORM
+
+## Object-Relational Mapper
+* Eloquent
+* ActiveRecord (Rails)
+* Doctrine ORM
+* Many more
+
+---
+
+# ORM Patters
+
+Doctrine uses a pattern called *Data Mapper*.
+Eloquent uses a pattern called *ActiveRecord*.
+
+---
+
+# Active Record
+
+Considered by many to be an anti-pattern.
+People defend it by saying it is fast and easy to use.
+
+---
+
+# What's wrong with Active Record
+
+The most common answer is that it does not properly separate concerns. It creates tight coupling of your code, makes it harder to test and reuse. This is because your models are aware of the database and can save them selves.
+
+```php
+$user->save();
+```
+
+---
+
+# Data Mapper
+
+* Data Mapper entities (or models) don't know anything about the database.
+* They are plain PHP objects.
+* An Entity Manager is used for persistence.
+
+```php
+$user = new User($name, $email, $password);
+$entityManager->persist($user);
+$entityManager->flush();
+```
+
+---
+
+# Entities are a cinch to test
+
+Because entities have no dependencies, and they don't know anything about a persistence layer, they are extremely easy to test.
+
+---
+
+### Which class tells you more about how it is used?
+
+---
+
+```php
+class User extends Model implements AuthenticatableContract,
+                                    CanResetPasswordContract
+{
+    /**
+     * @var string
+     */
+    protected $table = 'users';
+    
+    /**
+     * The attributes protected from mass assignment.
+     *
+     * @var array
+     */
+    protected $guarded = ['id'];
+    
+    /**
+     * The attributes excluded from the model's JSON form.
+     *
+     * @var array
+     */
+    protected $hidden = ['password', 'remember_token'];
+    
+    // Literally end of the class
+}
+```
+
+---
+
+```php
+/**
+ * @ORM\Entity(repositoryClass="QA\Repo\Users")
+ * @ORM\Table(
+ *     name="users",
+ *     uniqueConstraints={
+ *         @ORM\UniqueConstraint(name="user_email_unique", columns={"email"})
+ *     }
+ * )
+ * @ORM\HasLifecycleCallbacks
+ */
+class User implements Entity, AuthenticatableContract, CanResetPassword
+{
+    /**
+     * @ORM\Id
+     * @ORM\GeneratedValue
+     * @ORM\Column(type="integer")
+     * @var int
+     */
+    protected $id;
+    
+    // More properties hidden for space...
+    
+    /**
+     * @param string $name
+     * @param string $email
+     * @param string $password
+     */
+    public function __construct($name, $email, $password)
+    {
+        $this->name = $name;
+        $this->email = $email;
+        $this->password = $password;
+        $this->memberships = new ArrayCollection;
+    }
+    
+    // public getters down here
+}
+```
+
+---
+
+# Expressing Intent
+
+Constructor parameters express intent and tell the programmer a lot about how a class should be used. Anything passed into the constructor is absolutely required for the class to work. Making the properties protected means that you can only access them through public methods.
+
+---
+
+```php
+class Person
+{
+    protected $name
+    
+    // Name is required
+    public function __construct($name)
+    {
+        $this->name = $name;
+    }
+    
+    public function getName($name) {
+        return $this->name;
+    };
+    
+    // No public setter in the class.
+    // Name is not meant to be modified after this class is instantiated.
+}
+```
+
+---
+
+# EntityManager is Smart
+
+The EM will track everything that you have passed to persist and then generate the most efficient SQL it can when you call flush.
+
+```php
+$em->persist($foo); // doesn't actually persist
+$em->persist($bar); // doesn't actually persist
+$em->persist($baz); // doesn't actuall persist
+$em->flush(); // persists all changes
+```
+
+---
+
+
+
