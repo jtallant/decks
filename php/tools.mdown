@@ -91,21 +91,21 @@ class User extends Model implements AuthenticatableContract,
      * @var string
      */
     protected $table = 'users';
-    
+
     /**
      * The attributes protected from mass assignment.
      *
      * @var array
      */
     protected $guarded = ['id'];
-    
+
     /**
      * The attributes excluded from the model's JSON form.
      *
      * @var array
      */
     protected $hidden = ['password', 'remember_token'];
-    
+
     // Literally end of the class
 }
 ```
@@ -132,9 +132,9 @@ class User implements Entity, AuthenticatableContract, CanResetPassword
      * @var int
      */
     protected $id;
-    
+
     // More properties hidden for space...
-    
+
     /**
      * @param string $name
      * @param string $email
@@ -147,7 +147,7 @@ class User implements Entity, AuthenticatableContract, CanResetPassword
         $this->password = $password;
         $this->memberships = new ArrayCollection;
     }
-    
+
     // public getters down here
 }
 ```
@@ -164,17 +164,17 @@ Constructor parameters express intent and tell the programmer a lot about how a 
 class Person
 {
     protected $name
-    
+
     // Name is required
     public function __construct($name)
     {
         $this->name = $name;
     }
-    
+
     public function getName($name) {
         return $this->name;
     };
-    
+
     // No public setter in the class.
     // Name is not meant to be modified after this class is instantiated.
 }
@@ -194,6 +194,14 @@ $em->flush(); // persists all changes
 ```
 
 ---
+
+# Topics for Later
+
+* JSON API Spec
+* Dependency Injection vs Facades
+* Middleware
+* phpspec
+* What to mock
 
 
 

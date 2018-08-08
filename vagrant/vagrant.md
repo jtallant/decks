@@ -285,8 +285,8 @@ git clone git@github.com:surprisehighway/vagrant-test.git
 
 ```
 folders:
-  - map: /Users/justin/Sites/vagrant-test
-    to: /home/vagrant/Sites/vagrant-test
+  - map: /Users/justin/Sites/
+    to: /home/vagrant/Sites/
 
 sites:  
   - map: local.vagrant-test.com
@@ -312,18 +312,13 @@ Terminal: `hosts`
 
 ---
 
-# Provision your VM
+# Let the VM know about your site
 
-Every time you edit your homestead.yaml file, you need to let vagrant know about the changes.
+Homestead is configuring for nginx by default. Homestead comes with a bash function you can run to add the nginx config for the new site.
 
-Restart the VM and provision.
+SSH into your vm and run:
 
-From the homestead directory:
-
-`vagrant reload --provision`
-
-^ Action: Run vagrant reload --provision
-^ You can also vagrant destroy && vagrant up
+`serve local.vagrant-test.com /home/vagrant/Sites/vagrant-test/public`
 
 ---
 
@@ -340,14 +335,12 @@ From the homestead directory:
 
 1. Add the site to homestead.yaml
 1. Add the site to your hosts file
-1. `vagrant reload --provision`
+1. Add the nginx config for your site. (Use the bash function)
 
 ```
 folders:
-  - map: /Users/justin/Sites/vagrant-test
-    to: /home/vagrant/Sites/vagrant-test
-  - map: /Users/justin/Sites/some-other-site
-    to: /home/vagrant/Sites/some-other-site
+  - map: /Users/justin/Sites/
+    to: /home/vagrant/Sites/
 
 sites:  
   - map: local.vagrant-test.com
