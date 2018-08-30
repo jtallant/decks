@@ -63,9 +63,9 @@ and then go and make the code actually functional.
 
 # Arrange, Act, Assert
 
-* Arrange: Setup/Instantiate objects and pass data
-* Act: Run the code that we want to test the outcome of
-* Assert: Verify expected outcome
+- **Arrange**: Setup/Instantiate objects and pass data
+- **Act**: Run the code that we want to test the outcome of
+- **Assert**: Verify expected outcome
 
 ---
 ```php
@@ -76,15 +76,15 @@ class ViewConcertListingTest extends TestCase
      */
     public function user_can_view_concert_listing()
     {
-        // Arrange
+        # Arrange
         $concert = Concert::create($attributes);
 
-        // Act: View the listing in browser
-        $this->visit('/concerts/'.$concert->id);
+        # Act: Make request to concert show
+        $response = $this->get('/concerts/'.$concert->id);
 
-        // Assert
-        $this->see('Some concert attribute');
-        $this->see('Some other concert attribute');
+        # Assert: Ensure concert data exists in the response body
+        $response->assertSee('Some concert attribute');
+        $response->assertSee('Some other concert attribute');
     }
 }
 ```
@@ -162,10 +162,10 @@ $factory->define(App\User::class, function (Faker $faker) {
 # Using a Factory
 
 ```php
-# create one user
+# create one user instance, do not persist to DB (make vs create)
 $user = factory(App\User::class)->make();
 
-# create 3 users
+# create 3 user instances, do not persist to DB (make vs create)
 $users = factory(App\User::class, 3)->make();
 ```
 
@@ -245,11 +245,6 @@ class ExampleTest extends TestCase
 {
     use RefreshDatabase;
 
-    /**
-     * A basic functional test example.
-     *
-     * @return void
-     */
     public function testBasicExample()
     {
         $response = $this->get('/');
@@ -287,7 +282,7 @@ $this->assertEquals('closed', $ticketManager->ticketStatus($concert));
 
 ---
 
-# Eloquent Make vs Create
+# Make vs Create (Eloquent and Factories)
 
 ```php
 # Instantiate a model instance w/o persisting to DB
@@ -295,6 +290,15 @@ Model::make($attributes);
 
 # Instantiate and persist to DB
 Model::create($attributes);
+
+# Use factory to create instance w/o persisting
+factory(Model::class)->make();
+
+# Use factory to create model instance and persist
+factory(Model::class)->create();
+
+# Use factory to create 4 model instances and persist
+factory(Model::class, 4)->create();
 ```
 
 ---
@@ -353,7 +357,7 @@ $this->json('POST', '/user', ['name' => 'Sally']);
 
 # Special JSON HTTP method
 
-There is nothing magical about the json method. It simply does some grunt work for you like setting headers and json encoding the request data. Under the hood..
+There is nothing magical about the json method. It simply does some grunt work for you like setting headers and json encoding the request data. Under the hood...
 
 ```php
 /**
@@ -391,16 +395,16 @@ public function json($method, $uri, array $data = [], array $headers = [])
 class ExampleTest extends TestCase
 {
     /**
-     * A basic functional test example.
-     *
-     * @return void
+     * @test
      */
-    public function testBasicExample()
+    public function test_user_create()
     {
         $response = $this->json('POST', '/user', ['name' => 'Sally']);
 
         $response
+            # assert we received 201 created HTTP status
             ->assertStatus(201)
+            # assert the json response matches the exact data we pass here
             ->assertExactJson([
                 'created' => true,
             ]);
@@ -409,3 +413,145 @@ class ExampleTest extends TestCase
 ```
 
 ---
+
+# Asserting Response Status
+
+```php
+class ExampleTest extends TestCase
+{
+    public function testBasicExample()
+    {
+        $response = $this->get('/some/uri/that/should/404');    
+
+        # Assert we received 404 status (method 1)
+        $response->assertNotFound();
+
+        # Assert we received 404 status (method 2)
+        $response->assertStatus(404);
+    }
+}
+```
+
+---
+
+# Testing Query Scopes
+
+```php
+# Definition
+class Concert extends Model
+{
+    public function scopePublished($query)
+    {
+        return $query->whereNotNull('published_at');
+    }
+}
+
+# Usage
+$publishedConcerts = Concert::published();
+```
+
+---
+
+# Testing Query Scopes
+
+```php
+/** @test */
+function concerts_with_a_published_at_date_are_published()
+{
+    $publishedConcertA = factory(Concert::class)
+        ->create(['published_at' => Carbon::parse('-1 week')]);
+
+    $publishedConcertB = factory(Concert::class)
+        ->create(['published_at' => Carbon::parse('-1 week')]);
+
+    $unpublishedConcert = factory(Concert::class)
+        ->create(['published_at' => null]);
+
+    $publishedConcerts = Concert::published()->get();
+
+    $this->assertTrue($publishedConcerts->contains($publishedConcertA));
+    $this->assertTrue($publishedConcerts->contains($publishedConcertB));
+    $this->assertFalse($publishedConcerts->contains($unpublishedConcert));
+}
+```
+
+---
+
+## Hiding an implementation detail with more expressive code
+
+* By looking at the code we can see that the published_at attribute value determines whether or not the concert is published. If the value is not null, it is published, else it is not published.
+* We can be more expressive and not leak that information out in our tests.
+* Factory states are one way of being more expressive.
+
+---
+
+## Factory States
+
+```php
+# Define the Concert factory
+$factory->define(Concert::class, function (Faker $faker) {
+    return [
+        // default attributes here
+    ];
+});
+
+# Add a factory "state"
+$factory->state(Concert::class, 'published', [
+    'published_at' => Carbon::parse('-1 day'),
+]);
+
+# Add an unpublished state just for clarity (being explicit)
+$factory->state(Concert::class, 'unpublished', [
+    'published_at' => null,
+]);
+
+# Use the factory
+$publishedConcert = factory(Concert::class)->states('published')->make();
+
+# Make unpublished concert
+$unpublishedConcert = factory(Concert::class)->states('unpublished')->make();
+
+```
+
+---
+
+# Updating test code
+
+```php
+/** @test */
+function concerts_with_a_published_at_date_are_published()
+{
+    $publishedConcertA = factory(Concert::class)
+        ->create(['published_at' => Carbon::parse('-1 week')]);
+
+    $publishedConcertB = factory(Concert::class)
+        ->create(['published_at' => Carbon::parse('-1 week')]);
+
+    $unpublishedConcert = factory(Concert::class)
+        ->create(['published_at' => null]);
+
+    $publishedConcerts = Concert::published()->get();
+
+    $this->assertTrue($publishedConcerts->contains($publishedConcertA));
+    $this->assertTrue($publishedConcerts->contains($publishedConcertB));
+    $this->assertFalse($publishedConcerts->contains($unpublishedConcert));
+}
+```
+
+```php
+/** @test */
+function concerts_with_a_published_at_date_are_published()
+{
+    $publishedConcertA = factory(Concert::class)->states('published')->create();
+
+    $publishedConcertB = factory(Concert::class)->states('publised')->create();
+
+    $unpublishedConcert = factory(Concert::class)->states('unpublished')->create();
+
+    $publishedConcerts = Concert::published()->get();
+
+    $this->assertTrue($publishedConcerts->contains($publishedConcertA));
+    $this->assertTrue($publishedConcerts->contains($publishedConcertB));
+    $this->assertFalse($publishedConcerts->contains($unpublishedConcert));
+}
+```
