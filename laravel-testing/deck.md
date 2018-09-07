@@ -515,7 +515,7 @@ $unpublishedConcert = factory(Concert::class)->states('unpublished')->make();
 
 ---
 
-# Updating test code
+# Updating Test Code
 
 ```php
 /** @test */
@@ -555,3 +555,383 @@ function concerts_with_a_published_at_date_are_published()
     $this->assertFalse($publishedConcerts->contains($unpublishedConcert));
 }
 ```
+
+---
+
+# Browser Testing vs Endpoint Testing
+
+---
+
+## Browser Testing
+
+* Using a tool like selenium or PhantomJS to to simulate a user's actions
+inside the browser.
+
+```php
+function testBasicExample()
+{
+    $user = factory(User::class)->create([
+        'email' => 'taylor@laravel.com',
+    ]);
+
+    $this->browse(function ($browser) use ($user) {
+        $browser->visit('/login')
+                ->type('email', $user->email)
+                ->type('password', 'secret')
+                ->press('Login')
+                ->assertPathIs('/home');
+    });
+}
+```
+
+### Pros
+* High confidence. Simulates exactly how a user would interact with app.
+* Verifies working end-to-end (client => server)
+
+### Cons
+* Introduct new tool to stack (Selenium)
+* Slower
+* Brittle (depends on UI)
+* Complex setup
+* Often can't interact with code directly, have to make assertions through UI.
+
+---
+
+## Endpoint Testing (HTTP Tests)
+
+* Make HTTP requests directly to an endpoint, simulating how the browser would interact with the server instead of how user interacts with app.
+
+```php
+function testBasicExample() {
+    $response = $this->get('/');
+    $response->assertStatus(200);
+}
+```
+
+### Pros
+* Faster
+* Doesn't require additional tooling
+* Interacts with more stable data structures (DOM doesn't matter)
+* Can interact directly with code, more flexible assertions
+
+### Cons
+* Untested gap between front-end and back-end
+
+---
+
+# What do we need from our tests?
+* Confidence that the system works. This is #1!!
+* Reliable, don't break for unimportant reasons
+* Fast, run often
+* Simple, limit tools used, easily recreate the env
+
+---
+
+# Faking Payment Gateway
+
+* Sometimes you have a package that depends on some external service
+* Stripe is a package that interacts with stripe.com API for billing
+* Don't use the actual package in your tests
+* Otherwise you're testing stripe and your code, not just your code
+* You'd have to make actual requests to Stripe (requires internet, slow)
+
+---
+
+# Faking Payment Gateway
+
+So how do we test our code without using the actual payment gateway that we will have to depend on?
+
+---
+
+# Faking Payment Gateway
+
+* For now we just create a fake payment gateway
+* **only implement what you need right now**
+* Don't just go writing all the methods you think you'll need
+
+```php
+class FakePaymentGateway
+{
+    proteced $charges;
+
+    public function __construct()
+    {
+        $this->charges = collect();
+    }
+
+    public function getValidTestToken()
+    {
+        return 'valid-token';
+    }
+
+    public function charge($amount, $token)
+    {
+        $this->charges[] = $amount; 
+    }
+
+    public function totalCharges()
+    {
+        $this->charges->sum();
+    }
+}
+```
+
+---
+
+# Faking Payment Gateway
+
+* Now that we have a fake, we need to use it on our controller so we can actually test our code
+* Instead of just injecting the fake we should inject an interface so we can swap it with a real payment gateway in production
+
+```php
+use App\Billing\PaymentGatewayInterface;
+
+class ConcertOrdersController
+{
+    /**
+     * @var PaymentGatewayInterface
+     */
+    protected $paymentGateway;
+
+    public function __construct(PaymentGatewayInterface $paymentGateway)
+    {
+        $this->paymentGateway = $paymentGateway;
+    }
+}
+```
+
+---
+
+# Faking Payment Gateway
+
+* Now that we have our interface, laravel will throw an error saying that the interface is not instantiable. That is because interfaces are of course, not instantiable
+* We need to tell Laravel which implementation of the interface to use
+
+```php
+// tests/features/PurchaseTickets.php
+class PurchaseTicketsTest extends TestCase
+{
+    /** @test */
+    function customer_can_purchase_tickets()
+    {
+        $paymentGateway = new FakePaymentGateway;
+
+        # Tell Laravel...
+        # When I ask for PaymentGatewayInterface, give me fake payment gateway
+        # In production, we'll bind the actual stripe payment gateway
+        $this->app->instance(PaymentGatewayInterface::class, $paymentGateway);
+    }
+}
+```
+
+---
+
+# Encapsulting Relationship Logic (Refactor)
+
+```php
+class ConcertOrdersController
+{
+    public function store($id)
+    {
+        $concert = Concert::findOrFail($id);
+
+        // Charging the customer
+        $ticketQuantity = request('ticket_quantity');
+        $amount = $ticketQuantity * $concert->ticketPrice;
+        $token = request('payment_token');
+        $this->paymentGateway->charge($amount, $token);
+
+        // Creating the order
+        $order = $concert->orders->create(['email' => request('email')]);
+
+        foreach(range(1, $ticketQuantity) as $i) {
+            $order->tickets()->create([]);
+        }
+
+        return response()->json([], 201);
+    }
+}
+```
+
+---
+
+# Encapsulting Relationship Logic (Refactor)
+
+```php
+class ConcertOrdersController
+{
+    public function store($id)
+    {
+        $concert = Concert::findOrFail($id);
+
+        $tq = request('ticket_quantity');
+
+        // Charging the customer
+        $this->paymentGateway->charge($tq * $concert->ticket_price, request('payment_token'));
+
+        // Creating the order
+        $order = $concert->orders->create(['email' => request('email')]);
+
+        foreach(range(1, $tq) as $i) {
+            $order->tickets()->create([]);
+        }
+
+        return response()->json([], 201);
+    }
+}
+```
+
+---
+
+# Encapsulting Relationship Logic (Refactor)
+
+```php
+class ConcertOrdersController
+{
+    public function store($id)
+    {
+        $concert = Concert::findOrFail($id);
+        
+        $tq = request('ticket_quantity');
+
+        # Charging the customer
+        $this->paymentGateway->charge($tq * $concert->ticket_price, request('payment_token'));
+
+        # Creating the order
+        $order = $concert->orderTickets($email, $tq);
+        // $order = $concert->orders->create(['email' => request('email')]);
+        // foreach(range(1, $tq) as $i) {
+        //     $order->tickets()->create([]);
+        // }
+
+
+        return response()->json([], 201);
+    }
+}
+```
+
+---
+
+# Refactor
+
+```php
+// use unit test to verify new orderTickets method workds
+class ConcertTest extends TestCase
+{
+    /** @test */
+    function can_order_concert_tickets()
+    {
+        $concert = factory(Concert::class)->create();
+
+        $order = $concert->orderTickets('jane@example.com', 3);
+
+        $this->assertEquals('jane@example.com', $order->email);
+        $this->assertEquals(3, $order->tickets()->count());
+    }
+}
+
+class Concert extends Model
+{
+    public function orderTickets($email, $ticketQuantity)
+    {
+        $order = $this->orders->create(['email' => $email]);
+
+        foreach(range(1, $ticketQuantity) as $i) {
+            $order->tickets()->create([]);
+        }
+
+        return $order;
+    }
+}
+```
+
+---
+
+# Encapsulting Relationship Logic (Refactor)
+
+```php
+class ConcertOrdersController
+{
+    public function store($id)
+    {
+        $concert = Concert::findOrFail($id);
+        
+        # Charging the customer
+        $this->paymentGateway->charge(request('ticket_quantity') * $concert->ticket_price, request('payment_token'));
+
+        # Creating the order
+        $order = $concert->orderTickets(request('email'), request('ticket_quantity'));
+
+        return response()->json([], 201);
+    }
+}
+```
+
+---
+
+# Detour
+
+---
+
+# Laravel Exception Handling
+
+* Laravel converts model not found exceptions to 404
+* Laravel converts validation errors to 302 redirect back
+
+Model not found is triggered when you call Model::findOrFail($id) and the model is not found. When this happens, a ModelNotFoundException is thrown. When exception handling is on, the laravel exception handler will convert that ModelNotFoundException into a 404 response to the client.
+
+---
+
+Benefit of Laravel exception handler converting the exception to response...
+
+```php
+class SomeController
+{
+    // do this...
+    function show($id)
+    {
+        $model = Model::findOrFail($id);
+
+        return view('some.view', ['model' => $model]);
+    }
+
+    // instead of this...
+    function show($id)
+    {
+        $model = Model::find($id);
+
+        if (empty($model)) {
+            abort(404);
+        }
+
+        return view('some.view', ['model' => $model]);
+    }
+}
+```
+
+---
+
+# Exception Handling
+
+* As convenient as all that is in production, it's not convenient when we are testing. While testing, we want the original exception that was thrown.
+* The exception handler can make it very confusing as to what is actually going on or what the error is.
+
+```php
+class SomeTest extends TestCase
+{
+    /** @test */
+    function it_does_a_thing()
+    {
+        $this->withoutExceptionHandling();
+
+        // now ModelNotFoundException is actually thrown
+        // now validation errors don't give 302, ValidationException is thrown
+    }
+}
+```
+
+---
+
+
+
+
