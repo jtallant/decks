@@ -1261,6 +1261,10 @@ function beforeFirstCharge(callable $callback)
 function charge($amount)
 {
     $this->beforeFirstChargeCallback->__invoke();
+
+    // you could also do this
+    // $beforeFirstCharge = $this->beforeFirstChargeCallback;
+    // $beforeFirstCharge();
 }
 ```
 
@@ -1279,10 +1283,43 @@ Gotcha..
 When nested inside request, Laravel will catch a PHPUnit test failure
 and try to convert it into an HTTP error response.
 
-I don't know if this is still true.
-
 ---
 
 # Reserving Individual Tickets
 
+When writing factories, always wrap attributes that persist a new record in an anonymous function.
+
+```php
+$factory->define(Ticket::class, function($faker) {
+    return [
+        'concert_id' => function() {
+            return factory(Ticket::class)->create()->id;
+        }
+    ];
+});
+```
+
 ---
+
+# Reserved Means Reserved
+
+* can_reserve_available_tickets
+* cannot_reserve_tickets_that_have_already_been_purchased
+* cannot_reserve_tickets_that_have_already_been_reserved
+
+---
+
+# That Guy Stole My Tickets
+
+Explains how to preserve request data when using sub requests within laravel tests. I'm just going to find a way to do the tests properly without using subrequests, seems to messy.
+
+---
+
+# Section: Hunting for Stale Code
+
+---
+
+# Cancelling Reservations
+
+---
+
