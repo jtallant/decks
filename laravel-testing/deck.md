@@ -564,8 +564,10 @@ function concerts_with_a_published_at_date_are_published()
 
 ## Browser Testing
 
-* Using a tool like selenium or PhantomJS to to simulate a user's actions
+* Using a tool like selenium or PhantomJS to simulate a user's actions
 inside the browser.
+
+----
 
 ```php
 function testBasicExample()
@@ -583,6 +585,8 @@ function testBasicExample()
     });
 }
 ```
+
+---
 
 ### Pros
 * High confidence. Simulates exactly how a user would interact with app.
@@ -607,6 +611,10 @@ function testBasicExample() {
     $response->assertStatus(200);
 }
 ```
+
+---
+
+## Endpoint Testing (HTTP Tests)
 
 ### Pros
 * Faster
@@ -877,8 +885,9 @@ class ConcertOrdersController
 
 * Laravel converts model not found exceptions to 404
 * Laravel converts validation errors to 302 redirect back
-
-Model not found is triggered when you call Model::findOrFail($id) and the model is not found. When this happens, a ModelNotFoundException is thrown. When exception handling is on, the laravel exception handler will convert that ModelNotFoundException into a 404 response to the client.
+* Model not found is triggered when you call Model::findOrFail($id) and the model is not found
+* When this happens, a ModelNotFoundException is thrown
+* When exception handling is on, the laravel exception handler will convert that ModelNotFoundException into a 404 response to the client
 
 ---
 
@@ -913,7 +922,7 @@ class SomeController
 
 # Exception Handling
 
-* As convenient as all that is in production, it's not convenient when we are testing. While testing, we want the original exception that was thrown.
+* As convenient as all that is in production, it's not convenient when we are testing. While testing, we usually want the original exception that was thrown.
 * The exception handler can make it very confusing as to what is actually going on or what the error is.
 
 ```php
@@ -932,6 +941,348 @@ class SomeTest extends TestCase
 
 ---
 
+# Testing Validation Logic
+
+```php
+class HabitsController extends Controller
+{
+    public function store(Request $request)
+    {
+        $data = $request->validate([
+            'title'      => 'required|string',
+            'start_date' => 'required',
+        ]);
+
+        $habit = Habit::create([
+            'title'      => request('title'),
+            'start_date' => request('start_date'),
+        ]);
+
+        return redirect()->route('habits.index');
+    }
+}
+
+class CreateHabitTest extends TestCase
+{
+    /** @test */
+    public function it_validates_attributes()
+    {
+        $user = factory(\App\User::class)->create();
+
+        $response = $this->post('/habits', [
+            'title' => null,
+            'start_date' => null,
+        ]);
+
+        $response->assertSessionHasErrors(['title', 'start_date']);
+
+        $response->assertStatus(302); // redirect back
+    }
+}
+```
+
+---
+
+# Reducing Duplication With Custom Assertions
+
+* Being lazy on notes here
+* Basically try and remove duplication and create private methods on test class when it makes sense
+
+---
+
+# Asserting Exceptions
+^ Handling failed charges
+
+* phpunit supports docblock for expected exception
+* this is not our preferred method
+
+```php
+/**
+ * @test
+ * @expectedException \App\Billing\PaymentFailedException
+ */
+function it_fails_without_a_valid_payment_token()
+{
+    // code that attemts to charge w/o payment token here
+}
+```
+
+---
+
+# Assert Exceptions
+
+* A better way
+
+```php
+/** @test */
+function it_fails_without_a_valid_payment_token()
+{
+    try {
+        $paymentGateway = new PaymentGateway;
+        $paymentGateway->charge(2500, 'invalid-payment-token');
+    } catch (PaymentFailedException $e) {
+        // we just return out of the try block
+        // so we can assert the test failed below
+        return;
+    }
+
+    $this->fail();
+}
+```
+
+---
+
+# Why this approach?
+
+* It allows us to make assertions about the failed charge if need be
+* This is done in the catch part of the try block
+
+```php
+/** @test */
+function it_fails_without_a_valid_payment_token()
+{
+    try {
+        $paymentGateway = new PaymentGateway;
+        $paymentGateway->charge(2500, 'invalid-payment-token');
+    } catch (PaymentFailedException $e) {
+        $this->assertEquals(2500, $e->failedChargeAmount());
+        return;
+    }
+
+    // some other assertions here
+}
+```
+
+---
+
+# Preventing Ticket Purchases for Unpublished Concerts
+
+```
+// Assert response status 404 in the test, should not be a valid endpoint
+response = make request to order tickets on unpublished concert
+response->assertStatus(404)
+
+// Assert no orders were created for the concert just to be thorough
+$this->assertEquals(0, $concert->orders()->count());
+
+// Assert customer isn't actually charged!!!
+$this->assertEquals(0, $paymentGateway->totalCharges());
+```
 
 
+---
 
+# Clean Up Tests
+
+* Tests need to be refactored and kept healthy just like production code
+* Look for duplication as usual
+
+---
+
+# Asserting Against JSON
+
+* `assertJson`
+    - verify partial match
+    - PHPUnit::assertArraySubset
+    - test passes if other key/values exist in response
+* `assertExactJson`
+    - verify all response key/values match provided key/values
+
+---
+
+# Asserting Against JSON
+
+* Most the time you're just going to be using `assertJson`
+* You're not gonna wanna test the whole response in every test
+
+---
+
+# Filtering Tests
+
+* It's often useful to run only one test class or even one test method at a time
+
+---
+
+# Testing one class
+
+* Just type the whole path to the file
+* phpunit /path/to/my/test/class
+
+---
+
+# Testing one method
+
+* You can use the `--filter` option in phpunit
+* phpunit /path/to/test/class --filter target_test_method_name
+
+---
+
+# This Design Sucks
+
+* Nothing interesting here
+* Just obvious design flaws
+
+---
+
+# Persisting the Order Amount
+
+* Only make changes while the tests are passing
+* I assume this helps avoid getting into a hole
+* Find a way to change the code that keeps your tests passing
+
+---
+
+# Removing the need to cancel orders
+
+* When starting changes, find a test to use as a reference point to ensure the code still works.
+
+---
+
+# Preparing for Extraction
+
+* Removes a foreign key column in favor of belongsToMany
+
+---
+
+# Extracting a Named Constructor
+
+* `Order::forTickets($tickets, string $email)`
+
+---
+
+# Precomputing the Order Amount
+
+Adds an order 'amount' param to the `Order::forTickets` named constructor.
+
+* Makes the param optional
+* updates all calls to forTickets to provide the param
+* Makes the param required
+
+---
+
+# Uncovering a New Domain Object
+
+```php
+# Old
+$this->payments->charge($tickets->sum('price'));
+$order = Order::forTickets($tickets, $email, $tickets->sum('price'));
+
+# New
+$reservation = new Reservation($tickets);
+$this->payments->charge($reservation->totalCost());
+$order = Order::forTicket($tickets, $email, $reservation->totalCost());
+```
+
+---
+
+# What I would do
+
+```
+// Hold the tickets until order complete or failed
+$this->reservations->reserve($tickets);
+
+try {
+    // Attempt to charge the customer
+    $this->payments->charge($order->amount);
+
+    // success, create order
+    $order = new Order($user, $tickets);
+} catch (\Exception $e) {
+    // failure, lift the reserverations
+    $this->reservations->lift($tickets);
+    // return error message
+}
+```
+
+---
+
+# You Might Not Need a Mocking Framework
+
+The reservation class calculates the total cost of the tickets without having to store them in the DB. We can now test the totalCost functionality without persisting models. Domain objects can help simplify our code by reducing dependencies. A side effect of this can be faster and simpler tests.
+
+----
+
+# Tip
+
+You can use plain objects to avoid database inserts.
+
+```php
+$tickets = collect([
+    (object) ['price' => 1200],
+    (object) ['price' => 1200],
+]);
+
+$reservation = new Reservation($tickets);
+
+$this->assertEquals(2400, $reservation->totalCost());
+```
+
+---
+
+# Uh Oh, a Race Condition
+
+Just explains the race condition for purchasing tickets.
+
+---
+
+# Requestception
+
+Talks about how you would assert a customer can't order tickets that someone else already has reserved.
+
+Why couldn't you just do this?
+
+```php
+if ($ticketCollection->hasReservedTickets()) {
+    // redirect back, "Some of your ticket selections have already been reserved"
+}
+
+$ticketsCollection->reserveAll();
+
+if ($this->paymentGateway->charge($ticketCollection)) {
+    // success! create order
+} {
+    // fail
+    $ticketCollection->liftReservation();
+}
+```
+
+---
+
+# Hooking into Charges
+
+Creates a method inside the the payment gateway that allows you to hook into the gateway and call a function before the first charge.
+
+```php
+function beforeFirstCharge(callable $callback)
+{
+    $this->beforeFirstChargeCallback = $callback;
+}
+
+function charge($amount)
+{
+    $this->beforeFirstChargeCallback->__invoke();
+}
+```
+
+---
+
+# Uh oh a segfault
+
+...
+
+---
+
+# Replicating the Failure at the Unit Level
+
+Gotcha..
+
+When nested inside request, Laravel will catch a PHPUnit test failure
+and try to convert it into an HTTP error response.
+
+I don't know if this is still true.
+
+---
+
+# Reserving Individual Tickets
+
+---
