@@ -278,3 +278,200 @@ The path to changeable and maintainable object-oriented software begins with cla
 #### Chapter 3
 
 ---
+
+* Because well designed objects have a single responsibility, their very nature requires that they collaborate to accomplish complex tasks.
+* This collaboration is powerful and perilous. To collaborate, an object must know something know about others.
+* Knowing creates a dependency. If not managed carefully, these dependencies will strangle your application.
+
+---
+
+# Recognizing Dependencies
+
+* The name of another class. Gear expects a class named Wheel to exist
+* The name of a message that it intends to send to someone other than self.
+* The arguments that a message requires.
+* The order of those arguments.
+
+---
+
+* Unnecessary dependencies make code less reasonable. Because they increase the chance that other classes will be forced to change, these dependencies turn minor code tweaks into major undertakings where small changes cascade through the application, forcing many changes.
+* Your design challenge is to manage dependencies so that each class has the fewest possible; a class should know just enough to do its job and not one thing more.
+
+---
+
+# Other Dependencies
+## Law of Demeter
+* knowing the name of a message you plan to send to someone other than self
+* Don't go two deep...
+* Bad: `$a->b->foo()`
+* Ok: `$a->foo()`
+
+---
+
+# Other Dependencies
+## Tightly Couple Test Code
+
+* Tests break every time the code is refactored
+* Tests begin to seem costly relative to their value
+
+---
+
+# Writing Loosely Coupled Code
+## Inject Dependencies
+
+`gearInches` method contains an explicit reference to class Wheel
+
+```php
+class Gear
+{
+    public function gearInches()
+    {
+        $this->ratio * (new Wheel($this->rim, $this->tire))->diameter();
+    }
+}
+```
+
+---
+
+# Writing Loosely Coupled Code
+## Inject Dependencies
+
+Refactor using DI. Gear no longer cares about class wheel. It just needs something that responds to the method `diameter`.
+
+```php
+class Gear
+{
+    protected $chaingring;
+    protected $cog;
+    protected $wheel;
+
+    public function construct($chainring, $cog, $wheel)
+    {
+        $this->chaingRing = $chainring;
+        $this->cog = $cog;
+        $this->wheel = $wheel;
+    }
+
+    public function gearInches()
+    {
+        return $this->ratio() * $this->wheel->diameter();
+    }
+
+    # ... code
+}
+```
+
+---
+
+# Writing Loosely Coupled Code
+
+* In the real world you often times can't make the changes you would like to make. In these situations, just do the best you can given the constraints.
+* There are many things you can do to make a codebase more flexible.
+* Expose dependencies as mucha as possible.
+
+---
+
+# Writing Loosely Coupled Code
+## Working under constraints
+
+There are strategies you could use when you can't just inject a wheel class into Gear. These strategies aim to REVEAL dependencies since we can't just inject or remove them right now. This lowers the barrier to re-use later.
+
+---
+
+* Strategy 1: Move the creation of `Wheel` into `Gear` construct. This exposes the dependency in the constructor which is better than hiding it down inside a class method.
+* Strategy 2: Isolate the creation of `Wheel` inside of a private method.
+
+---
+
+# Remove Argument-Order Dependencies
+
+* You can use named constructors or accept associative arrays (hashes) as constructor arguments to avoid argument-order dependencies.
+
+---
+
+# Accept associative array as constructor param
+
+```php
+class Wheel
+{
+    protected $gear;
+    protected $bar;
+
+    public function _construct(array $args)
+    {
+        $this->gear = $args['gear'];
+        $this->foo = $args['bar'];
+    }
+}
+```
+
+---
+
+# Named constructor
+
+```php
+class Wheel
+{
+    protected $gear;
+    protected $bar;
+
+    public function __construct($gear, $bar)
+    {
+        $this->gear = $gear;
+        $this->bar = $bar;
+    }
+
+    public static function create(array $args)
+    {
+        return new static($args['gear'], $args['bar']);
+    }
+}
+```
+
+---
+
+# Isolate Multiparameter Initialization
+
+* Imagine that Gear is part of a framework and that its initialization method requires fixed-order arguments. Imagine also that your code has many places where you must create a new instance of Gear. Gear’s initialize method is external to your application; it is part of an external interface over which you have no control.
+
+---
+
+# Isolate Multiparameter Initialization
+
+* As dire as this situation appears, you are not doomed to accept the dependencies. Just as you would DRY out repetitive code inside of a class, DRY out the creation of new Gear instances by creating a single method to wrap the external interface
+
+---
+
+```php
+class GearFactory
+{
+    public static function create(array $args)
+    {
+        return new Gear($args['foo'], $args['bar']);
+    }
+}
+```
+
+---
+
+# Managing Dependency Direction
+
+Classes should depend on things that change less often than themselves.
+
+---
+
+* Some classes are more likely than others to have changes in requirements.
+* Concrete classes are more likely to change than abstract classes.
+* Changing a class that has many dependents will result in widespread consequences.
+
+---
+
+This chapter really didn't seem to talk much about dependency direction.
+
+---
+
+# Creating flexible interfaces
+#### Chapter 4
+
+
+---
