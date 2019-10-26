@@ -473,5 +473,5 @@ This chapter really didn't seem to talk much about dependency direction.
 # Creating flexible interfaces
 #### Chapter 4
 
-
 ---
+
